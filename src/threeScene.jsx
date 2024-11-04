@@ -5,6 +5,7 @@ import { fragment } from './shaders/fragment';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import VirtualScroll from 'virtual-scroll';
+import * as dat from 'dat.gui'; // Import dat.GUI
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -13,11 +14,12 @@ const ThreeScene = () => {
   const meshRefs = useRef([]);
   const scrollTarget = useRef(0);
   const scrollCurrent = useRef(0);
+  const cameraPosition = useRef({ x: -10, y: -5, z: 9 });
 
   useEffect(() => {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
-    camera.position.z = 5;
+    camera.position.set(cameraPosition.current.x, cameraPosition.current.y, cameraPosition.current.z);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -34,7 +36,7 @@ const ThreeScene = () => {
 
     // Create planes with unique colors and shader materials
     meshRefs.current = colors.map((color, i) => {
-      const geometry = new THREE.PlaneGeometry(1.5, 2, 32, 32);
+      const geometry = new THREE.PlaneGeometry(2, 3, 32, 32);
       const material = new THREE.ShaderMaterial({
         vertexShader: vertex,
         fragmentShader: fragment,
@@ -45,20 +47,53 @@ const ThreeScene = () => {
         },
       });
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.x = (i - 2) * 1;
-      mesh.rotation.x = -Math.PI / 16;
-      mesh.rotation.y = -Math.PI / 16;
+      mesh.position.z = (i - 2) * 0.2;
+      mesh.position.x = -(i - 2) * 0.2;
+      mesh.rotation.x = Math.PI / 20;
       scene.add(mesh);
       return mesh;
     });
 
+    // Initialize GUI
+    const gui = new dat.GUI();
+
+    // Camera controls
+    const cameraFolder = gui.addFolder('Camera Position');
+    cameraFolder.add(cameraPosition.current, 'x', -10, 10).onChange(value => {
+      camera.position.x = value;
+    });
+    cameraFolder.add(cameraPosition.current, 'y', -10, 10).onChange(value => {
+      camera.position.y = value;
+    });
+    cameraFolder.add(cameraPosition.current, 'z', 1, 20).onChange(value => {
+      camera.position.z = value;
+    });
+    cameraFolder.open();
+
+    // Mesh controls
+    // const meshFolder = gui.addFolder('Mesh Positions');
+    // meshRefs.current.forEach((mesh, index) => {
+    //   const meshPosition = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
+    //   const folder = meshFolder.addFolder(`Mesh ${index}`);
+    //   folder.add(meshPosition, 'x', -10, 10).onChange(value => {
+    //     mesh.position.x = value;
+    //   });
+    //   folder.add(meshPosition, 'y', -10, 10).onChange(value => {
+    //     mesh.position.y = value;
+    //   });
+    //   folder.add(meshPosition, 'z', -10, 10).onChange(value => {
+    //     mesh.position.z = value;
+    //   });
+    // });
+    // meshFolder.open();
+
     const scroller = new VirtualScroll();
     scroller.on(event => {
-      scrollTarget.current += event.deltaY / 1000; // Normalize the scroll
+      scrollTarget.current += event.deltaY / 1000;
     });
 
     function animate() {
-      scrollCurrent.current += (scrollTarget.current - scrollCurrent.current) * 0.1;
+      scrollCurrent.current += (scrollTarget.current - scrollCurrent.current) * 0.3;
 
       meshRefs.current.forEach((mesh, index) => {
         mesh.material.uniforms.progress.value = scrollCurrent.current * 0.5 - index * 0.3;
@@ -76,7 +111,7 @@ const ThreeScene = () => {
       end: "bottom bottom",
       scrub: 1,
       onUpdate: () => {
-        scrollTarget.current = scrollCurrent.current; 
+        scrollTarget.current = scrollCurrent.current;
       },
     });
 
@@ -93,6 +128,7 @@ const ThreeScene = () => {
       mountRef.current.removeChild(renderer.domElement);
       window.removeEventListener('resize', handleResize);
       renderer.dispose();
+      gui.destroy(); // Clean up GUI when component unmounts
     };
   }, []);
 
