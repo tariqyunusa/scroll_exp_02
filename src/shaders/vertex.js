@@ -7,7 +7,7 @@ export const vertex = `
     vec3 pos = position;
 
     // Apply progress to position.y for vertical movement
-    pos.xy += progress;
+    pos.z += progress;
 
     // Transform position with model, view, and projection matrices
     vec3 vWorldPosition = (modelMatrix * vec4(pos, 1.0)).xyz;

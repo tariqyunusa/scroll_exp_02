@@ -5,7 +5,7 @@ import { fragment } from './shaders/fragment';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import VirtualScroll from 'virtual-scroll';
-import * as dat from 'dat.gui'; // Import dat.GUI
+import * as dat from 'dat.gui';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -14,7 +14,10 @@ const ThreeScene = () => {
   const meshRefs = useRef([]);
   const scrollTarget = useRef(0);
   const scrollCurrent = useRef(0);
-  const cameraPosition = useRef({ x: -10, y: -5, z: 9 });
+  const cameraPosition = useRef({ x: 3, y: 0, z: 0 });
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  const targetPositionY = useRef([]); // Store target y-positions for each mesh
 
   useEffect(() => {
     const scene = new THREE.Scene();
@@ -46,18 +49,21 @@ const ThreeScene = () => {
           progress: { value: 0 },
         },
       });
+
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.z = (i - 2) * 0.2;
-      mesh.position.x = -(i - 2) * 0.2;
-      mesh.rotation.x = Math.PI / 20;
-      scene.add(mesh);
-      return mesh;
+      const container = new THREE.Object3D();
+      container.add(mesh);
+      // container.position.z = Math.PI * (i - 2);
+      container.position.z = -i * 3;
+      scene.add(container);
+
+      targetPositionY.current[i] = 0; // Initialize target y-position
+      return container;
     });
 
-    // Initialize GUI
     const gui = new dat.GUI();
+    raycaster.precision = 0.0001;
 
-    // Camera controls
     const cameraFolder = gui.addFolder('Camera Position');
     cameraFolder.add(cameraPosition.current, 'x', -10, 10).onChange(value => {
       camera.position.x = value;
@@ -65,38 +71,26 @@ const ThreeScene = () => {
     cameraFolder.add(cameraPosition.current, 'y', -10, 10).onChange(value => {
       camera.position.y = value;
     });
-    cameraFolder.add(cameraPosition.current, 'z', 1, 20).onChange(value => {
+    cameraFolder.add(cameraPosition.current, 'z', -10, 10).onChange(value => {
       camera.position.z = value;
     });
     cameraFolder.open();
-
-    // Mesh controls
-    // const meshFolder = gui.addFolder('Mesh Positions');
-    // meshRefs.current.forEach((mesh, index) => {
-    //   const meshPosition = { x: mesh.position.x, y: mesh.position.y, z: mesh.position.z };
-    //   const folder = meshFolder.addFolder(`Mesh ${index}`);
-    //   folder.add(meshPosition, 'x', -10, 10).onChange(value => {
-    //     mesh.position.x = value;
-    //   });
-    //   folder.add(meshPosition, 'y', -10, 10).onChange(value => {
-    //     mesh.position.y = value;
-    //   });
-    //   folder.add(meshPosition, 'z', -10, 10).onChange(value => {
-    //     mesh.position.z = value;
-    //   });
-    // });
-    // meshFolder.open();
 
     const scroller = new VirtualScroll();
     scroller.on(event => {
       scrollTarget.current += event.deltaY / 1000;
     });
 
+    // Animation loop
     function animate() {
       scrollCurrent.current += (scrollTarget.current - scrollCurrent.current) * 0.3;
 
-      meshRefs.current.forEach((mesh, index) => {
+      meshRefs.current.forEach((container, index) => {
+        const mesh = container.children[0];
         mesh.material.uniforms.progress.value = scrollCurrent.current * 0.5 - index * 0.3;
+
+        // Smooth y-position changes for hover effect
+        mesh.position.y += (targetPositionY.current[index] - mesh.position.y) * 0.1; // Smooth lerp
       });
 
       renderer.render(scene, camera);
@@ -104,7 +98,6 @@ const ThreeScene = () => {
     }
     animate();
 
-    // Set up ScrollTrigger
     ScrollTrigger.create({
       trigger: mountRef.current,
       start: "top top",
@@ -123,16 +116,39 @@ const ThreeScene = () => {
 
     window.addEventListener('resize', handleResize);
 
+    const handleMouseMove = (event) => {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      meshRefs.current.forEach((container, index) => {
+        const mesh = container.children[0];
+        targetPositionY.current[index] = 0; // Reset target y-position
+      });
+
+      const intersects = raycaster.intersectObjects(meshRefs.current.map(c => c.children[0]));
+
+      if (intersects.length > 0) {
+        const intersectedMesh = intersects[0].object;
+        const meshIndex = meshRefs.current.findIndex(container => container.children[0] === intersectedMesh);
+        targetPositionY.current[meshIndex] = 1; // Set target y-position on hover
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+
     return () => {
-      scroller.destroy(); // Clean up VirtualScroll
+      scroller.destroy();
       mountRef.current.removeChild(renderer.domElement);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('mousemove', handleMouseMove);
       renderer.dispose();
-      gui.destroy(); // Clean up GUI when component unmounts
+      gui.destroy();
     };
   }, []);
 
-  return <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />;
-};
+  return <div ref={mountRef} style={{ width: '100vw', height: '100vh'}} />
+}
 
 export default ThreeScene;
