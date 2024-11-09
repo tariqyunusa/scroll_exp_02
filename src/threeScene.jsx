@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { vertex } from './shaders/vertex';
 import { fragment } from './shaders/fragment';
@@ -17,9 +17,9 @@ const ThreeScene = () => {
   const cameraPosition = useRef({ x: 3, y: 0, z: 0 });
   const raycaster = new THREE.Raycaster();
   const mouse = new THREE.Vector2();
-  const targetPositionY = useRef([]); // Store target y-positions for each mesh
+  const targetPositionY = useRef([]);
 
-  useEffect(() => {
+  const initializeScene = (loadedTextures) => {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
     camera.position.set(cameraPosition.current.x, cameraPosition.current.y, cameraPosition.current.z);
@@ -30,22 +30,15 @@ const ThreeScene = () => {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
 
-    const colors = [
-      0xe63946, 0xf1faee, 0xa8dadc, 0x457b9d, 0x1d3557,
-      0xffb703, 0xfb8500, 0x023047, 0x8ecae6, 0x219ebc,
-      0x8338ec, 0x3a0ca3, 0x00b4d8, 0x48cae4, 0x0077b6,
-      0xd4a5a5, 0xef476f, 0x06d6a0, 0x118ab2, 0x073b4c,
-    ];
-
-    // Create planes with unique colors and shader materials
-    meshRefs.current = colors.map((color, i) => {
+    // Create planes and apply textures
+    meshRefs.current = loadedTextures.map((texture, i) => {
       const geometry = new THREE.PlaneGeometry(2, 3, 32, 32);
       const material = new THREE.ShaderMaterial({
         vertexShader: vertex,
         fragmentShader: fragment,
         side: THREE.DoubleSide,
         uniforms: {
-          color: { value: new THREE.Color(color) },
+          uTexture: { value: texture },
           progress: { value: 0 },
         },
       });
@@ -53,44 +46,40 @@ const ThreeScene = () => {
       const mesh = new THREE.Mesh(geometry, material);
       const container = new THREE.Object3D();
       container.add(mesh);
-      // container.position.z = Math.PI * (i - 2);
       container.position.z = -i * 3;
       scene.add(container);
 
-      targetPositionY.current[i] = 0; // Initialize target y-position
+      targetPositionY.current[i] = 0;
       return container;
     });
 
-    const gui = new dat.GUI();
+    // const gui = new dat.GUI();
     raycaster.precision = 0.0001;
 
-    const cameraFolder = gui.addFolder('Camera Position');
-    cameraFolder.add(cameraPosition.current, 'x', -10, 10).onChange(value => {
-      camera.position.x = value;
-    });
-    cameraFolder.add(cameraPosition.current, 'y', -10, 10).onChange(value => {
-      camera.position.y = value;
-    });
-    cameraFolder.add(cameraPosition.current, 'z', -10, 10).onChange(value => {
-      camera.position.z = value;
-    });
-    cameraFolder.open();
+    // const cameraFolder = gui.addFolder('Camera Position');
+    // cameraFolder.add(cameraPosition.current, 'x', -10, 10).onChange(value => {
+    //   camera.position.x = value;
+    // });
+    // cameraFolder.add(cameraPosition.current, 'y', -10, 10).onChange(value => {
+    //   camera.position.y = value;
+    // });
+    // cameraFolder.add(cameraPosition.current, 'z', -10, 10).onChange(value => {
+    //   camera.position.z = value;
+    // });
+    // cameraFolder.open();
 
     const scroller = new VirtualScroll();
     scroller.on(event => {
       scrollTarget.current += event.deltaY / 1000;
     });
 
-    // Animation loop
     function animate() {
       scrollCurrent.current += (scrollTarget.current - scrollCurrent.current) * 0.3;
 
       meshRefs.current.forEach((container, index) => {
         const mesh = container.children[0];
         mesh.material.uniforms.progress.value = scrollCurrent.current * 0.5 - index * 0.3;
-
-        // Smooth y-position changes for hover effect
-        mesh.position.y += (targetPositionY.current[index] - mesh.position.y) * 0.1; // Smooth lerp
+        mesh.position.y += (targetPositionY.current[index] - mesh.position.y) * 0.1;
       });
 
       renderer.render(scene, camera);
@@ -124,7 +113,7 @@ const ThreeScene = () => {
 
       meshRefs.current.forEach((container, index) => {
         const mesh = container.children[0];
-        targetPositionY.current[index] = 0; // Reset target y-position
+        targetPositionY.current[index] = 0;
       });
 
       const intersects = raycaster.intersectObjects(meshRefs.current.map(c => c.children[0]));
@@ -132,7 +121,7 @@ const ThreeScene = () => {
       if (intersects.length > 0) {
         const intersectedMesh = intersects[0].object;
         const meshIndex = meshRefs.current.findIndex(container => container.children[0] === intersectedMesh);
-        targetPositionY.current[meshIndex] = 1; // Set target y-position on hover
+        targetPositionY.current[meshIndex] = 1;
       }
     };
 
@@ -146,9 +135,39 @@ const ThreeScene = () => {
       renderer.dispose();
       gui.destroy();
     };
-  }, []);
+  };
 
-  return <div ref={mountRef} style={{ width: '100vw', height: '100vh'}} />
-}
+  useEffect(() => {
+    // Fetch posters and initialize scene
+    const fetchPostersAndInitialize = async () => {
+      const movies = await fetchMovies();
+      const textureLoader = new THREE.TextureLoader();
+      const loadedTextures = movies.map(movie => textureLoader.load(movie.posterPath));
+      
+      initializeScene(loadedTextures); 
+    };
+
+    fetchPostersAndInitialize();
+  }, []); 
+
+  return <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />;
+};
+
+const fetchMovies = async () => {
+  const accessToken = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJmMmQyZWEzM2Y3MjBhMTQ5MWU4MjE1MDM5MWEwNzYxZiIsIm5iZiI6MTczMTE0Njg0NC42NjE4MzUsInN1YiI6IjY1MjE1OTAzYzFmZmJkMDBmZTEwY2NmZiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.1HGu69GzirQ6feFPTbec7aJUyaIhh5xaKNcymg49GPE';
+  const url = 'https://api.themoviedb.org/3/movie/upcoming?language=en-US&page=1';
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      accept: 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+  const data = await response.json();
+  return data.results.map(movie => ({
+    title: movie.title,
+    posterPath: `https://image.tmdb.org/t/p/w500${movie.poster_path}`,
+  }));
+};
 
 export default ThreeScene;

@@ -1,9 +1,9 @@
 export const fragment = `
 varying vec2 vUv;
-uniform vec3 color;
+uniform sampler2D uTexture;
 
 void main() {
-    
-    gl_FragColor = vec4(color, 1.0); 
+    vec4 tex = texture2D(uTexture, vUv);
+    gl_FragColor = tex; 
 }
 `;
