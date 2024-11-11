@@ -8,6 +8,7 @@ import VirtualScroll from 'virtual-scroll';
 
 gsap.registerPlugin(ScrollTrigger);
 
+
 const ThreeScene = ({ data }) => {
   const mountRef = useRef(null);
   const meshRefs = useRef([]);
@@ -54,7 +55,7 @@ const ThreeScene = ({ data }) => {
 
     const scroller = new VirtualScroll();
     scroller.on(event => {
-      scrollTarget.current += event.deltaY / 1000;
+      scrollTarget.current += event.deltaY * 0.3;
     });
 
     function animate() {

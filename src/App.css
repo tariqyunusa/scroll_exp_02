@@ -9,7 +9,8 @@
   flex-direction: column;
   gap: 0.6rem;
   position: relative;
-  transform: translateY(50%);
+  transform: translateY(100%);
+  /* overflow: scroll; */
 
 }
 .title__slider h3{
